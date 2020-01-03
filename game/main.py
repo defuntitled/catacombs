@@ -27,7 +27,7 @@ class Creature():
             self.view_up = True
         else:
             self.view_up = False
-        if 0 <= pov <= 90 and 270 <= self.pov < 360:
+        if 0 <= pov <= 90 or 270 <= self.pov < 360:
             self.view_right = True
         else:
             self.view_right = False
@@ -36,8 +36,8 @@ class Creature():
 class Player(Creature):
     def __init__(self, x, y, pov):
         super().__init__(x, y, pov)
-        self.walk_speed = 19
-        self.rotate_speed = 15
+        self.walk_speed = 10
+        self.rotate_speed = 2.11111
         self.fov = 60
 
     def rotate_left(self):
@@ -54,11 +54,11 @@ class Player(Creature):
 
     def walk_forward(self):
         self.x += cos(radians(self.pov)) * self.walk_speed
-        self.y += sin(radians(self.pov)) * self.walk_speed
+        self.y -= sin(radians(self.pov)) * self.walk_speed
 
     def walk_back(self):
         self.x -= cos(radians(self.pov)) * self.walk_speed
-        self.y -= sin(radians(self.pov)) * self.walk_speed
+        self.y += sin(radians(self.pov)) * self.walk_speed
 
 
 class Wall(pygame.sprite.Sprite):
@@ -83,10 +83,10 @@ class Area():
 
     def show(self):
         PP = (768, 512)
-        CAM_TO_PP = PP[1] / 2 / tan(radians(self.player.fov / 2))
+        CAM_TO_PP = PP[0] / 2 / tan(radians(self.player.fov / 2))
         ANGLE_BETWEEN_RAYS = self.player.fov / PP[0]
         angle_bet = -30
-        angle = self.player.pov + self.player.fov / 2
+        angle = self.player.pov - self.player.fov / 2
         for i in range(PP[0]):
             if self.player.view_up:
                 intesection_yy = floor(self.player.y / 64) * 64 - 1
@@ -102,18 +102,16 @@ class Area():
                 xx_next = -64
             cosinus, tangens = cos(radians(angle)), tan(radians(angle))
             intesection_yx = self.player.x + (self.player.y - intesection_yy) / tangens
-            yx_next = abs(64 / tan(radians(self.player.fov))) if self.player.view_right else -abs(
-                64 / tan(radians(self.player.fov)))
+            yx_next = 64 / tangens
             intesection_xy = self.player.y + (self.player.x - intesection_xx) * tangens
-            xy_next = -abs(64 * tan(radians(self.player.fov))) if self.player.view_up else abs(
-                64 * tan(radians(self.player.fov)))
+            xy_next = 64 * tangens
             intersected = False
             distance = []
             while not intersected:
                 try:
                     x = int(intesection_yx / 64)
                     y = int(intesection_yy / 64)
-                    # print(x, y)
+                    #print(x, y)
                     if self.map[y][x] == 1:
                         distance.append(
                             sqrt((self.player.x - intesection_yx) ** 2 + (self.player.y - intesection_yy) ** 2))
@@ -140,7 +138,8 @@ class Area():
                     break
             distance = min(distance) * cos(radians(angle_bet))
             high = int(64 / distance * CAM_TO_PP)
-            pygame.draw.rect(self.screen, (0, 0, 0), (i, int(PP[1] / 2 - high / 2), 1, high))
+            pygame.draw.line(self.screen, (0, 0, 0), (PP[0] - i, int(PP[1] / 2 - high / 2)), (PP[0]-i,  int(PP[1] / 2 - high / 2)+high))
+
             angle += ANGLE_BETWEEN_RAYS
             angle_bet += ANGLE_BETWEEN_RAYS
 
@@ -151,25 +150,45 @@ wall_surface = pygame.display.set_mode((768, 512))
 wall_surface.fill((255, 255, 255))
 running = True
 FPS_CONTROL = 30
-pygame.time.set_timer(FPS_CONTROL, 100)
-player = Player(96, 416, 45)
+pygame.time.set_timer(FPS_CONTROL, 50)
+player = Player(96, 416, 46)
 print(player.view_right, player.view_up)
 world = Area(player, wall_surface)
+world.show()
+forward, back, left, right = False, False, False, False
 while running:
+
     for event in pygame.event.get():
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_UP:
-                player.walk_forward()
+                forward = True
             elif event.key == pygame.K_DOWN:
-                player.walk_back()
+                back = True
             elif event.key == pygame.K_LEFT:
-                player.rotate_left()
+                left = True
             elif event.key == pygame.K_RIGHT:
-                player.rotate_right()
-            print(player.pov)
+                right = True
+        if event.type == pygame.KEYUP:
+            if event.key == pygame.K_UP:
+                forward = False
+            elif event.key == pygame.K_DOWN:
+                back = False
+            elif event.key == pygame.K_LEFT:
+                left = False
+            elif event.key == pygame.K_RIGHT:
+                right = False
+            print(player.pov, player.x, player.y)
         if event.type == pygame.QUIT:
             running = False
         if event.type == FPS_CONTROL:
+            if forward:
+                player.walk_forward()
+            elif back:
+                player.walk_back()
+            elif right:
+                player.rotate_right()
+            elif left:
+                player.rotate_left()
             wall_surface.fill((255, 255, 255))
             world.show()
     pygame.display.flip()
