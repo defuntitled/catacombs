@@ -37,18 +37,18 @@ class Player(Creature):
     def __init__(self, x, y, pov):
         super().__init__(x, y, pov)
         self.walk_speed = 19
-        self.rotate_speed = 60
+        self.rotate_speed = 15
         self.fov = 60
 
     def rotate_left(self):
         if self.pov + self.rotate_speed >= 360:
-            self.pov = (self.pov+self.rotate_speed)%360
+            self.pov = (self.pov + self.rotate_speed) % 360
         else:
             self.pov += self.rotate_speed
 
     def rotate_right(self):
         if self.pov - self.rotate_speed < 0:
-            self.pov = (self.pov-self.rotate_speed)%360
+            self.pov = (self.pov - self.rotate_speed) % 360
         else:
             self.pov -= self.rotate_speed
 
@@ -68,93 +68,81 @@ class Wall(pygame.sprite.Sprite):
 
 class Area():
     def __init__(self, player, screen):
-        self.map = [[('w', None), ('w', None), ('w', None), ('w', None), ('w', None), ('w', None)],
-                    [('w', None), ('a', None), ('a', None), ('a', None), ('a', None), ('w', None)],
-                    [('w', None), ('a', None), ('a', None), ('a', None), ('a', None), ('w', None)],
-                    [('w', None), ('a', None), ('a', None), ('a', None), ('a', None), ('w', None)],
-                    [('w', None), ('a', None), ('a', None), ('a', None), ('a', None), ('w', None)],
-                    [('w', None), ('w', None), ('w', None), ('w', None), ('w', None), ('w', None)]]
+        self.map = [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+                    [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                    [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                    [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                    [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                    [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                    [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                    [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                    [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]
         self.player = player
         self.screen = screen
 
     def show(self):
         PP = (768, 512)
         CAM_TO_PP = PP[1] / 2 / tan(radians(self.player.fov / 2))
-
+        ANGLE_BETWEEN_RAYS = self.player.fov / PP[0]
         angle_bet = -30
-
-        if self.player.view_right:
-            angle = self.player.pov + self.player.fov / 2
-        else:
-            angle = self.player.pov - self.player.fov / 2
-        # заготовки для хор
-
+        angle = self.player.pov + self.player.fov / 2
         for i in range(PP[0]):
             if self.player.view_up:
-                intersection_y = floor(self.player.y / 64) * 64 - 1
-                y_distance = -64
+                intesection_yy = floor(self.player.y / 64) * 64 - 1
+                yy_next = -64
             else:
-                intersection_y = floor(self.player.y / 64) * 64 + 64
-                y_distance = 64
-            # заготовки для верт
+                intesection_yy = floor(self.player.y / 64) * 64 + 64
+                yy_next = 64
             if self.player.view_right:
-                intersection_xX = floor(self.player.x / 64) * 64 + 64
-                x_xdistance = 64
+                intesection_xx = floor(self.player.x / 64) * 64 + 64
+                xx_next = 64
             else:
-                intersection_xX = floor(self.player.x / 64) * 64 - 1
-                x_xdistance = -64
+                intesection_xx = floor(self.player.x / 64) * 64 - 1
+                xx_next = -64
+            cosinus, tangens = cos(radians(angle)), tan(radians(angle))
+            intesection_yx = self.player.x + (self.player.y - intesection_yy) / tangens
+            yx_next = abs(64 / tan(radians(self.player.fov))) if self.player.view_right else -abs(
+                64 / tan(radians(self.player.fov)))
+            intesection_xy = self.player.y + (self.player.x - intesection_xx) * tangens
+            xy_next = -abs(64 * tan(radians(self.player.fov))) if self.player.view_up else abs(
+                64 * tan(radians(self.player.fov)))
+            intersected = False
             distance = []
-            intersection_x = self.player.x + (self.player.y - intersection_y) / tan(radians(angle))
-            xDistance = 64 / tan(radians(angle))
-            intersected = False
-            # cast by horisontal
             while not intersected:
                 try:
-                    x = int(intersection_x / 64)
-                    y = int(intersection_y / 64)
+                    x = int(intesection_yx / 64)
+                    y = int(intesection_yy / 64)
                     # print(x, y)
-                    if self.map[y][x][0] == 'w':
+                    if self.map[y][x] == 1:
                         distance.append(
-                            sqrt((self.player.x - intersection_x) ** 2 + (self.player.y - intersection_y) ** 2))
+                            sqrt((self.player.x - intesection_yx) ** 2 + (self.player.y - intesection_yy) ** 2))
                         intersected = True
                     else:
-                        intersection_x += xDistance
-                        intersection_y += y_distance
+                        intesection_yx += yx_next
+                        intesection_yy += yy_next
                 except IndexError:
                     break
-            # cast by vertical
             intersected = False
-            intersection_xY = self.player.y + (self.player.x - intersection_xX) * tan(radians(angle))
-            y_xdistance = 64 * tan(radians(angle))
             while not intersected:
                 try:
-                    x = int(intersection_xX / 64)
-                    y = int(intersection_xY / 64)
+                    x = int(intesection_xx / 64)
+                    y = int(intesection_xy / 64)
                     # print(x, y)
-                    if self.map[y][x][0] == 'w':
+                    if self.map[y][x] == 1:
                         distance.append(
-                            sqrt((self.player.x - intersection_xX) ** 2 + (self.player.y - intersection_xY) ** 2))
-
+                            sqrt((self.player.x - intesection_xx) ** 2 + (self.player.y - intesection_xy) ** 2))
                         intersected = True
                     else:
-                        intersection_xX += x_xdistance
-                        intersection_xY += y_xdistance
+                        intesection_xx += xx_next
+                        intesection_xy += xy_next
                 except IndexError:
                     break
-            # print(distance)
-
-            distance = int(min(distance)) * cos(radians(angle_bet))
-
-            # рисовашки
+            distance = min(distance) * cos(radians(angle_bet))
             high = int(64 / distance * CAM_TO_PP)
-            # print(distance)
-            # print(high, distance, angle)
             pygame.draw.rect(self.screen, (0, 0, 0), (i, int(PP[1] / 2 - high / 2), 1, high))
-            if self.player.view_right:
-                angle -= self.player.fov / PP[1]
-            else:
-                angle += self.player.fov / PP[1]
-            angle_bet += self.player.fov / PP[1]
+            angle += ANGLE_BETWEEN_RAYS
+            angle_bet += ANGLE_BETWEEN_RAYS
 
 
 pygame.init()
@@ -164,8 +152,8 @@ wall_surface.fill((255, 255, 255))
 running = True
 FPS_CONTROL = 30
 pygame.time.set_timer(FPS_CONTROL, 100)
-player = Player(192, 300, 145)
-print(player.view_right,player.view_up)
+player = Player(96, 416, 45)
+print(player.view_right, player.view_up)
 world = Area(player, wall_surface)
 while running:
     for event in pygame.event.get():
@@ -182,5 +170,6 @@ while running:
         if event.type == pygame.QUIT:
             running = False
         if event.type == FPS_CONTROL:
+            wall_surface.fill((255, 255, 255))
             world.show()
     pygame.display.flip()
