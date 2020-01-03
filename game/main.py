@@ -23,11 +23,11 @@ class Creature():
         self.pov = pov
         self.view_up = None
         self.view_right = None
-        if 0 <= pov % 360 < 180:
+        if 0 <= pov <= 180:
             self.view_up = True
         else:
             self.view_up = False
-        if 0 <= pov % 360 < 90 and 270 <= pov % 360 < 360:
+        if 0 <= pov <= 90 and 270 <= self.pov < 360:
             self.view_right = True
         else:
             self.view_right = False
@@ -36,19 +36,19 @@ class Creature():
 class Player(Creature):
     def __init__(self, x, y, pov):
         super().__init__(x, y, pov)
-        self.walk_speed = 32 / 60
-        self.rotate_speed = 0.5
+        self.walk_speed = 19
+        self.rotate_speed = 60
         self.fov = 60
 
     def rotate_left(self):
-        if self.pov + self.rotate_speed == 360:
-            self.pov = 0
+        if self.pov + self.rotate_speed >= 360:
+            self.pov = (self.pov+self.rotate_speed)%360
         else:
             self.pov += self.rotate_speed
 
     def rotate_right(self):
         if self.pov - self.rotate_speed < 0:
-            self.pov = 359.5
+            self.pov = (self.pov-self.rotate_speed)%360
         else:
             self.pov -= self.rotate_speed
 
@@ -78,7 +78,7 @@ class Area():
         self.screen = screen
 
     def show(self):
-        PP = (768, 576)
+        PP = (768, 512)
         CAM_TO_PP = PP[1] / 2 / tan(radians(self.player.fov / 2))
 
         angle_bet = -30
@@ -113,10 +113,9 @@ class Area():
                     x = int(intersection_x / 64)
                     y = int(intersection_y / 64)
                     # print(x, y)
-                    if self.map[y][x] == 1:
+                    if self.map[y][x][0] == 'w':
                         distance.append(
                             sqrt((self.player.x - intersection_x) ** 2 + (self.player.y - intersection_y) ** 2))
-                        print(x, y)
                         intersected = True
                     else:
                         intersection_x += xDistance
@@ -132,10 +131,10 @@ class Area():
                     x = int(intersection_xX / 64)
                     y = int(intersection_xY / 64)
                     # print(x, y)
-                    if self.map[y][x] == 1:
+                    if self.map[y][x][0] == 'w':
                         distance.append(
                             sqrt((self.player.x - intersection_xX) ** 2 + (self.player.y - intersection_xY) ** 2))
-                        print(x, y)
+
                         intersected = True
                     else:
                         intersection_xX += x_xdistance
@@ -160,12 +159,14 @@ class Area():
 
 pygame.init()
 
-wall_surface = pygame.display.set_mode((384, 384))
+wall_surface = pygame.display.set_mode((768, 512))
+wall_surface.fill((255, 255, 255))
 running = True
 FPS_CONTROL = 30
-pygame.time.set_timer(FPS_CONTROL, 16)
+pygame.time.set_timer(FPS_CONTROL, 100)
 player = Player(192, 300, 145)
-world = Area(player,wall_surface)
+print(player.view_right,player.view_up)
+world = Area(player, wall_surface)
 while running:
     for event in pygame.event.get():
         if event.type == pygame.KEYDOWN:
@@ -177,7 +178,7 @@ while running:
                 player.rotate_left()
             elif event.key == pygame.K_RIGHT:
                 player.rotate_right()
-
+            print(player.pov)
         if event.type == pygame.QUIT:
             running = False
         if event.type == FPS_CONTROL:
