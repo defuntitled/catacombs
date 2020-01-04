@@ -37,7 +37,7 @@ class Player(Creature):
     def __init__(self, x, y, pov):
         super().__init__(x, y, pov)
         self.walk_speed = 10
-        self.rotate_speed = 2.11111
+        self.rotate_speed = 2.111111
         self.fov = 60
 
     def rotate_left(self):
