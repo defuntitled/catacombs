@@ -23,11 +23,11 @@ class Creature():
         self.pov = pov
         self.view_up = None
         self.view_right = None
-        if 0 <= pov <= 180:
+        if 0 <= self.pov <= 180:
             self.view_up = True
         else:
             self.view_up = False
-        if 0 <= pov <= 90 or 270 <= self.pov < 360:
+        if 0 <= self.pov <= 90 or 270 <= self.pov < 360:
             self.view_right = True
         else:
             self.view_right = False
@@ -45,12 +45,14 @@ class Player(Creature):
             self.pov = (self.pov + self.rotate_speed) % 360
         else:
             self.pov += self.rotate_speed
+        self.pov_cheker()
 
     def rotate_right(self):
         if self.pov - self.rotate_speed < 0:
             self.pov = (self.pov - self.rotate_speed) % 360
         else:
             self.pov -= self.rotate_speed
+        self.pov_cheker()
 
     def walk_forward(self):
         self.x += cos(radians(self.pov)) * self.walk_speed
@@ -59,6 +61,16 @@ class Player(Creature):
     def walk_back(self):
         self.x -= cos(radians(self.pov)) * self.walk_speed
         self.y += sin(radians(self.pov)) * self.walk_speed
+
+    def pov_cheker(self):
+        if 0 <= self.pov <= 180:
+            self.view_up = True
+        else:
+            self.view_up = False
+        if 0 <= self.pov <= 90 or 270 <= self.pov < 360:
+            self.view_right = True
+        else:
+            self.view_right = False
 
 
 class Wall(pygame.sprite.Sprite):
@@ -70,7 +82,7 @@ class Area():
     def __init__(self, player, screen):
         self.map = [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
                     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-                    [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                    [1, 1, 1, 1, 1, 1, 1, 1, 0, 1],
                     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
                     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
                     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
@@ -87,6 +99,8 @@ class Area():
         ANGLE_BETWEEN_RAYS = self.player.fov / PP[0]
         angle_bet = -30
         angle = self.player.pov + self.player.fov / 2
+
+        self.angle_cheker(angle)
         for i in range(PP[0]):
             if self.player.view_up:
                 intesection_yy = self.player.y // 64 * 64 - 1
@@ -155,7 +169,22 @@ class Area():
             else:
                 self.player.walk_speed = 10
             angle -= ANGLE_BETWEEN_RAYS
+            self.angle_cheker(angle)
             angle_bet += ANGLE_BETWEEN_RAYS
+
+    def angle_cheker(self, angle):
+        if angle >= 360:
+            angle -= 360
+        if angle < 0:
+            angle += 360
+        if 0 <= angle <= 180:
+            self.player.view_up = True
+        else:
+            self.player.view_up = False
+        if 0 <= angle <= 90 or 270 <= angle < 360:
+            self.player.view_right = True
+        else:
+            self.player.view_right = False
 
 
 pygame.init()
@@ -165,10 +194,14 @@ wall_surface.fill((255, 255, 255))
 running = True
 FPS_CONTROL = 30
 pygame.time.set_timer(FPS_CONTROL, 50)
-player = Player(464.42276512364344, 374.01080205950484, 1.5655579999999532)
+player = Player(96, 96, 0.000001)
 print(player.view_right, player.view_up)
 world = Area(player, wall_surface)
 world.show()
+pygame.display.flip()
+# player.pov +=89
+# world.show()
+pygame.display.flip()
 forward, back, left, right = False, False, False, False
 while running:
 
