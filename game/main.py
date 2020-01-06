@@ -2,6 +2,7 @@
 import pygame
 from math import tan, sqrt, radians, cos, floor, sin
 import os
+import numpy
 
 
 def load_image(name, colorkey=None):
@@ -17,10 +18,11 @@ def load_image(name, colorkey=None):
 
 
 class Creature():
-    def __init__(self, x, y, pov):
+    def __init__(self, x, y, pov, area):
         self.x = x
         self.y = y
         self.pov = pov
+        self.habitant = area
         self.view_up = None
         self.view_right = None
         if 0 <= self.pov <= 180:
@@ -34,10 +36,12 @@ class Creature():
 
 
 class Player(Creature):
-    def __init__(self, x, y, pov):
-        super().__init__(x, y, pov)
+    def __init__(self, x, y, pov, area):
+        super().__init__(x, y, pov, area)
+        self.walk_speed_forward = 10
+        self.walk_speed_back = 10
         self.walk_speed = 10
-        self.rotate_speed = 2.111111
+        self.rotate_speed = 4.111111
         self.fov = 60
 
     def rotate_left(self):
@@ -55,12 +59,28 @@ class Player(Creature):
         self.pov_cheker()
 
     def walk_forward(self):
-        self.x += cos(radians(self.pov)) * self.walk_speed
-        self.y -= sin(radians(self.pov)) * self.walk_speed
+        sinus = sin(radians(self.pov))
+        cosinus = cos(radians(self.pov))
+        if self.habitant.map[int((self.y - sinus * self.walk_speed * 2) // 64)][int(
+                (self.x + cosinus * self.walk_speed * 2) // 64)]:
+            self.walk_speed_forward = 0
+        else:
+            if self.walk_speed_forward == 0:
+                self.walk_speed_forward = 10
+            self.x += cosinus * self.walk_speed_forward
+            self.y -= sinus * self.walk_speed_forward
 
     def walk_back(self):
-        self.x -= cos(radians(self.pov)) * self.walk_speed
-        self.y += sin(radians(self.pov)) * self.walk_speed
+        sinus = sin(radians(self.pov))
+        cosinus = cos(radians(self.pov))
+        if self.habitant.map[int((self.y + sinus * self.walk_speed * 2) // 64)][int(
+                (self.x - cosinus * self.walk_speed * 2) // 64)]:
+            self.walk_speed_back = 0
+        else:
+            if self.walk_speed_back == 0:
+                self.walk_speed_back = 10
+        self.x -= cos(radians(self.pov)) * self.walk_speed_back
+        self.y += sin(radians(self.pov)) * self.walk_speed_back
 
     def pov_cheker(self):
         if 0 <= self.pov <= 180:
@@ -79,19 +99,22 @@ class Wall(pygame.sprite.Sprite):
 
 
 class Area():
-    def __init__(self, player, screen):
-        self.map = [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-                    [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-                    [1, 1, 1, 1, 1, 1, 1, 1, 0, 1],
-                    [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-                    [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-                    [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-                    [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-                    [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-                    [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-                    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]]
-        self.player = player
+    def __init__(self, screen):
+        self.map = numpy.array([[1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+                                [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                                [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                                [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                                [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                                [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                                [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                                [1, 0, 0, 0, 0, 0, 1, 0, 0, 1],
+                                [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                                [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]])
+        self.player = None
         self.screen = screen
+
+    def add_creature(self, creature):
+        self.player = creature
 
     def show(self):
         PP = (768, 512)
@@ -99,7 +122,7 @@ class Area():
         ANGLE_BETWEEN_RAYS = self.player.fov / PP[0]
         angle_bet = -30
         angle = self.player.pov + self.player.fov / 2
-
+        c = 0
         self.angle_cheker(angle)
         for i in range(PP[0]):
             if self.player.view_up:
@@ -162,12 +185,10 @@ class Area():
                     break
             distance = min(distance) * cos(radians(angle_bet))
             high = int(64 / distance * CAM_TO_PP)
+            if high % 2 != 0:
+                high -= 1
             pygame.draw.line(self.screen, (0, 0, 0), (i, int(PP[1] / 2 - high / 2)),
                              (i, int(PP[1] / 2 - high / 2) + high))
-            if distance < 1 and angle == self.player.pov:
-                self.player.walk_speed = 0
-            else:
-                self.player.walk_speed = 10
             angle -= ANGLE_BETWEEN_RAYS
             self.angle_cheker(angle)
             angle_bet += ANGLE_BETWEEN_RAYS
@@ -194,35 +215,36 @@ wall_surface.fill((255, 255, 255))
 running = True
 FPS_CONTROL = 30
 pygame.time.set_timer(FPS_CONTROL, 50)
-player = Player(96, 96, 0.000001)
+world = Area(wall_surface)
+player = Player(128, 128, 0.0000001, world)
+world.add_creature(player)
 print(player.view_right, player.view_up)
-world = Area(player, wall_surface)
-world.show()
-pygame.display.flip()
 # player.pov +=89
-# world.show()
+world.show()
 pygame.display.flip()
 forward, back, left, right = False, False, False, False
 while running:
 
     for event in pygame.event.get():
         if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_UP:
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_UP] or keys[pygame.K_w]:
                 forward = True
-            elif event.key == pygame.K_DOWN:
+            if keys[pygame.K_DOWN] or keys[pygame.K_s]:
                 back = True
-            elif event.key == pygame.K_LEFT:
+            if keys[pygame.K_LEFT] or keys[pygame.K_a]:
                 left = True
-            elif event.key == pygame.K_RIGHT:
+            if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
                 right = True
         if event.type == pygame.KEYUP:
-            if event.key == pygame.K_UP:
+            keys = pygame.key.get_pressed()
+            if not keys[pygame.K_UP]:
                 forward = False
-            elif event.key == pygame.K_DOWN:
+            if not keys[pygame.K_DOWN]:
                 back = False
-            elif event.key == pygame.K_LEFT:
+            if not keys[pygame.K_LEFT]:
                 left = False
-            elif event.key == pygame.K_RIGHT:
+            if not keys[pygame.K_RIGHT]:
                 right = False
             print(player.x, player.y, player.pov)
         if event.type == pygame.QUIT:
@@ -230,11 +252,11 @@ while running:
         if event.type == FPS_CONTROL:
             if forward:
                 player.walk_forward()
-            elif back:
+            if back:
                 player.walk_back()
-            elif right:
+            if right:
                 player.rotate_right()
-            elif left:
+            if left:
                 player.rotate_left()
             wall_surface.fill((255, 255, 255))
             world.show()
