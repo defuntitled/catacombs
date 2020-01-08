@@ -1,8 +1,12 @@
-'''Hey, this is the game: the game *_* '''
+'''Hey, this is stane game *_* '''
 import pygame
 from math import tan, sqrt, radians, cos, floor, sin
 import os
 import numpy
+
+pygame.init()
+wall_surface = pygame.display.set_mode((768, 512))
+wall_surface.fill((255, 255, 255))
 
 
 def load_image(name, colorkey=None):
@@ -15,6 +19,10 @@ def load_image(name, colorkey=None):
     else:
         image = image.convert_alpha()
     return image
+
+
+WALL = [load_image(f'peace{i}.png') for i in range(64)]
+WALL = numpy.array(WALL)
 
 
 class Creature():
@@ -35,14 +43,31 @@ class Creature():
             self.view_right = False
 
 
+class Hand(pygame.sprite.Sprite):
+    def __init__(self, group):
+        super().__init__(group)
+        self.hands = [load_image('kultyap.png',-1), load_image('crazykultyap.png',-1)]
+        self.image = self.hands[0]
+        self.rect = self.image.get_rect()
+        self.rect.x = 170
+        self.rect.y = 240
+
+    def update(self, war_mode):
+        if war_mode:
+            self.image = self.hands[1]
+        else:
+            self.image = self.hands[0]
+
+
 class Player(Creature):
-    def __init__(self, x, y, pov, area):
+    def __init__(self, x, y, pov, area, hand):
         super().__init__(x, y, pov, area)
         self.walk_speed_forward = 10
         self.walk_speed_back = 10
         self.walk_speed = 10
         self.rotate_speed = 4.111111
         self.fov = 60
+        self.hand = hand
 
     def rotate_left(self):
         if self.pov + self.rotate_speed >= 360:
@@ -92,10 +117,20 @@ class Player(Creature):
         else:
             self.view_right = False
 
+    def piw(self):
+        pass
+
+
 
 class Wall(pygame.sprite.Sprite):
-    def __init__(self, group):
+    def __init__(self, group, peace_index, high, y, x, dist):
+        global WALL
         super().__init__(group)
+        self.image = WALL[peace_index]
+        self.image = pygame.transform.scale(self.image, (1, high))
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
 
 
 class Area():
@@ -107,7 +142,7 @@ class Area():
                                 [1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
                                 [1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1],
                                 [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-                                [1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1],
+                                [1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 2, 1],
                                 [1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1],
                                 [1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 0, 0, 0, 1],
                                 [1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1],
@@ -122,6 +157,8 @@ class Area():
         self.player = creature
 
     def show(self):
+        wall_group = pygame.sprite.Group()
+        coords_for_texturing = []
         PP = (768, 512)
         CAM_TO_PP = PP[0] / 2 / tan(radians(self.player.fov / 2))
         ANGLE_BETWEEN_RAYS = self.player.fov / PP[0]
@@ -164,9 +201,10 @@ class Area():
                     x = int(intesection_yx / 64)
                     y = int(intesection_yy / 64)
                     # print(x, y)
-                    if self.map[y][x] == 1:
+                    if self.map[y][x] != 0:
                         distance.append(
                             sqrt((self.player.x - intesection_yx) ** 2 + (self.player.y - intesection_yy) ** 2))
+                        coords_for_texturing.append(intesection_yx)
                         intersected = True
                     else:
                         intesection_yx += yx_next
@@ -179,24 +217,46 @@ class Area():
                     x = int(intesection_xx / 64)
                     y = int(intesection_xy / 64)
                     # print(x, y)
-                    if self.map[y][x] == 1:
+                    if self.map[y][x] != 0:
                         distance.append(
                             sqrt((self.player.x - intesection_xx) ** 2 + (self.player.y - intesection_xy) ** 2))
+                        coords_for_texturing.append(intesection_xy)
                         intersected = True
                     else:
                         intesection_xx += xx_next
                         intesection_xy += xy_next
                 except IndexError:
                     break
-            distance = min(distance) * cos(radians(angle_bet))
-            high = int(64 / distance * CAM_TO_PP)
+            if len(distance) == 2 and distance[0] < distance[1]:
+                distance[0] *= cos(radians(angle_bet))
+                high = int(64 / distance[0] * CAM_TO_PP)
+                pece_index = int(coords_for_texturing[0] % 64)
+                dist = distance[0]
+            elif len(distance) == 2 and distance[0] > distance[1]:
+                distance[1] *= cos(radians(angle_bet))
+                high = int(64 / distance[1] * CAM_TO_PP)
+                pece_index = int(coords_for_texturing[1] % 64)
+                dist = distance[1]
+            elif not intersected:
+                distance[0] *= cos(radians(angle_bet))
+                high = int(64 / distance[0] * CAM_TO_PP)
+                pece_index = int(coords_for_texturing[0] % 64)
+                dist = distance[0]
+            elif intersected:
+                distance[0] *= cos(radians(angle_bet))
+                high = int(64 / distance[0] * CAM_TO_PP)
+                pece_index = int(coords_for_texturing[0] % 64)
+                dist = distance[0]
             if high % 2 != 0:
                 high -= 1
-            pygame.draw.line(self.screen, (0, 0, 0), (i, int(PP[1] / 2 - high / 2)),
-                             (i, int(PP[1] / 2 - high / 2) + high))
+            # pygame.draw.line(self.screen, (0, 0, 0), (i, int(PP[1] / 2 - high / 2)),
+            # (i, int(PP[1] / 2 - high / 2) + high))
+            Wall(wall_group, pece_index, high, int(PP[1] / 2 - high / 2), i, dist)
             angle -= ANGLE_BETWEEN_RAYS
             self.angle_cheker(angle)
             angle_bet += ANGLE_BETWEEN_RAYS
+            coords_for_texturing = []
+        wall_group.draw(self.screen)
 
     def angle_cheker(self, angle):
         if angle >= 360:
@@ -213,17 +273,17 @@ class Area():
             self.player.view_right = False
 
 
-pygame.init()
-
-wall_surface = pygame.display.set_mode((768, 512))
-wall_surface.fill((255, 255, 255))
 running = True
 FPS_CONTROL = 30
 pygame.time.set_timer(FPS_CONTROL, 50)
+
 world = Area(wall_surface)
-player = Player(128, 128, 0.0000001, world)
+hand = pygame.sprite.Group()
+Hand(hand)
+player = Player(128, 128, 0.0000001, world, hand)
 world.add_creature(player)
 print(player.view_right, player.view_up)
+
 # player.pov +=89
 world.show()
 pygame.display.flip()
@@ -233,14 +293,16 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.KEYDOWN:
             keys = pygame.key.get_pressed()
-            if keys[pygame.K_UP] or keys[pygame.K_w]:
+            if keys[pygame.K_UP]:
                 forward = True
-            if keys[pygame.K_DOWN] or keys[pygame.K_s]:
+            if keys[pygame.K_DOWN]:
                 back = True
-            if keys[pygame.K_LEFT] or keys[pygame.K_a]:
+            if keys[pygame.K_LEFT]:
                 left = True
-            if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
+            if keys[pygame.K_RIGHT]:
                 right = True
+            if keys[pygame.K_a]:
+                hand.update(True)
         if event.type == pygame.KEYUP:
             keys = pygame.key.get_pressed()
             if not keys[pygame.K_UP]:
@@ -251,6 +313,8 @@ while running:
                 left = False
             if not keys[pygame.K_RIGHT]:
                 right = False
+            if not keys[pygame.K_a]:
+                hand.update(False)
             print(player.x, player.y, player.pov)
         if event.type == pygame.QUIT:
             running = False
@@ -263,6 +327,7 @@ while running:
                 player.rotate_right()
             if left:
                 player.rotate_left()
-            wall_surface.fill((255, 255, 255))
+            wall_surface.fill((50, 50, 50))
             world.show()
+            hand.draw(wall_surface)
     pygame.display.flip()
