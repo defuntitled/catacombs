@@ -1,8 +1,10 @@
-'''Hey, this is stane game *_* '''
+'''Hey, this is stane game *_*
+!!!балланс в игре достигается за счет дпс врагов!!! '''
 import pygame
 from math import tan, sqrt, radians, cos, floor, sin
 import os
 import numpy
+import sys
 
 pygame.init()
 main_surface = pygame.display.set_mode((768, 512))
@@ -21,13 +23,43 @@ def load_image(name, colorkey=None):
     return image
 
 
+# загрузка спрайтов мобос и стены
 WALL = [load_image(f'peace{i}.png') for i in range(64)]
 WALL = numpy.array(WALL)
-# MOB = [[load_image(f'zilibobkaframe_{i}.png', -1) for i in range(64)],
-#       [load_image(f'zilibobkafire_{i}.png', -1) for i in range(64)]]
 MOB = [[load_image(f'zilibobkaframe_{i}.png', -1) for i in range(64)],
        [load_image(f'zilibobkafire_{i}.png', -1) for i in range(64)]]
 MOB = numpy.array(MOB)
+BACKGROUND = load_image('background.jpg')
+
+
+def gameover(reason):
+    global main_surface
+    main_surface.fill((25, 25, 25))
+    main_surface.blit(BACKGROUND, (0, 0))
+    message_font = pygame.font.Font(None, 42)
+    control_font = pygame.font.Font(None, 36)
+    if reason:
+        rendered = message_font.render('Блестяще! Вы победили!', 1, (255, 255, 255))
+        main_surface.blit(rendered, (100, 112))
+    else:
+        rendered = message_font.render('Эти существа оказались вам не по зубам...', 1, (255, 255, 255))
+        main_surface.blit(rendered, (100, 112))
+    control_render = control_font.render('Нажмите пробел для новой игры', 1, (255, 255, 255))
+    main_surface.blit(control_render, (175, 250))
+    control_render = control_font.render('Нажмите Esc для выхода', 1, (255, 255, 255))
+    main_surface.blit(control_render, (180, 290))
+    pygame.display.flip()
+    running = True
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    gameplay()
+                elif event.key == pygame.K_ESCAPE:
+                    pygame.quit()
+                    sys.exit()
+            if event.type == pygame.QUIT:
+                running = False
 
 
 class Creature():
@@ -52,6 +84,8 @@ class Creature():
 
 
 class Hand(pygame.sprite.Sprite):
+    """класс визуального отображения игрока"""
+
     def __init__(self, group):
         super().__init__(group)
         self.hands = [load_image('kultyap.png', -1), load_image('crazykultyap.png', -1)]
@@ -68,6 +102,8 @@ class Hand(pygame.sprite.Sprite):
 
 
 class Player(Creature):
+    """класс игрока"""
+
     def __init__(self, x, y, pov, area, hand):
         super().__init__(x, y, pov, area)
         self.walk_speed_forward = 10
@@ -77,6 +113,7 @@ class Player(Creature):
         self.fov = 60
         self.hand = hand
         self.hp = 100
+        self.reason = None  # reason for game over
 
     def rotate_left(self):
         if self.pov + self.rotate_speed >= 360:
@@ -117,6 +154,7 @@ class Player(Creature):
         self.y += sin(radians(self.pov)) * self.walk_speed_back
 
     def pov_cheker(self):
+        """определяет в какую сторорну смотрит игрок"""
         if 0 <= self.pov <= 180:
             self.view_up = True
         else:
@@ -127,14 +165,35 @@ class Player(Creature):
             self.view_right = False
 
     def piw(self):
-        pass
+        # стрельба
+        i = 1
+        sinus = sin(radians(self.pov))
+        cosinus = cos(radians(self.pov))
+        while self.habitant.map[int((self.y - sinus * self.walk_speed * i) // 64)][int(
+                (self.x + cosinus * self.walk_speed * i) // 64)] != 1:
+            if self.habitant.map[int((self.y - sinus * self.walk_speed * i) // 64)][int(
+                    (self.x + cosinus * self.walk_speed * i) // 64)] == 3:
+                self.habitant.map[int((self.y - sinus * self.walk_speed * 2) // 64)][int(
+                    (self.x + cosinus * self.walk_speed * i) // 64)] = 0
+                break
+
+            else:
+                i += 1
+        for i in range(15):
+            if 3 in self.habitant.map[i]:
+                break
+            elif i == 14:
+                self.reason = True
 
     def damage(self):
-        self.hp -= 0.5
-        # gameover(False)
+        self.hp -= 0.005
+        if self.hp <= 0:
+            self.reason = False
 
 
 class Mob(pygame.sprite.Sprite):
+    """класс спрайта моба"""
+
     def __init__(self, group, state, pic_index, x, y, high):
         super().__init__(group)
         global MOB
@@ -149,6 +208,8 @@ class Mob(pygame.sprite.Sprite):
 
 
 class Wall(pygame.sprite.Sprite):
+    """Класс спрайта стены"""
+
     def __init__(self, group, peace_index, high, y, x):
         global WALL
         super().__init__(group)
@@ -160,6 +221,9 @@ class Wall(pygame.sprite.Sprite):
 
 
 class Area():
+    '''класс отвечает за рендеринг сцены (стен и мобов)
+    возможно метод show получился перегруженным но так было проще совершенствовать алгоритм отрисовки'''
+
     def __init__(self, screen):
         self.map = numpy.array([[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
                                 [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 1],
@@ -174,7 +238,7 @@ class Area():
                                 [1, 0, 3, 0, 0, 0, 0, 1, 0, 1, 0, 1, 1, 1, 1],
                                 [1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1],
                                 [1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1],
-                                [1, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 1],
+                                [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 1],
                                 [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]])
         self.player = None
         self.screen = screen
@@ -189,7 +253,7 @@ class Area():
         wall_group = pygame.sprite.Group()
         self.mob_sprite_group = pygame.sprite.Group()
         coords_for_texturing = []
-        PP = (768, 512)  # projection plane
+        PP = (768, 512)  # projection plane (плоскость проекции)
         self.CAM_TO_PP = PP[0] / 2 / tan(
             radians(self.player.fov / 2))  # distance between ''camera'' and projection plane
         ANGLE_BETWEEN_RAYS = self.player.fov / PP[0]
@@ -197,8 +261,8 @@ class Area():
         angle = self.player.pov + self.player.fov / 2
         draw_mob = False
         self.angle_cheker(angle)
+        # цикл трассировки лучей. while ищут пересечения с клетками карты по 2 осям
         for i in range(PP[0]):
-
             mob_view_system = [[False], [False]]
             if self.player.view_up:
                 intesection_yy = self.player.y // 64 * 64 - 1
@@ -268,6 +332,7 @@ class Area():
                         mob_view_system[1].append(intesection_xy)
                 except IndexError:
                     break
+            # выборка пересечения с меньшим расстоянием и нахождением мобов
             if len(distance) == 2 and distance[0] < distance[1]:
                 distance[0] *= cos(radians(angle_bet))
                 high = int(64 / distance[0] * self.CAM_TO_PP)
@@ -279,7 +344,6 @@ class Area():
                     self.find_mob_sprite(mob_view_system[0][1], mob_view_system[0][2], False, i, 0)
                 elif not mob_view_system[0][0]:
                     draw_mob = False
-                    # self.mob_sprite_group = pygame.sprite.Group()
             elif len(distance) == 2 and distance[0] > distance[1]:
                 distance[1] *= cos(radians(angle_bet))
                 high = int(64 / distance[1] * self.CAM_TO_PP)
@@ -291,7 +355,7 @@ class Area():
                     self.find_mob_sprite(mob_view_system[1][1], mob_view_system[1][2], False, i, 1)
                 elif not mob_view_system[1][0]:
                     draw_mob = False
-                    # self.mob_sprite_group = pygame.sprite.Group()
+
             elif not intersected:
                 distance[0] *= cos(radians(angle_bet))
                 high = int(64 / distance[0] * self.CAM_TO_PP)
@@ -303,7 +367,7 @@ class Area():
                     self.find_mob_sprite(mob_view_system[0][1], mob_view_system[0][2], False, i, 0)
                 elif not mob_view_system[0][0]:
                     draw_mob = False
-                    # self.mob_sprite_group = pygame.sprite.Group()
+
             elif intersected:
                 distance[0] *= cos(radians(angle_bet))
                 high = int(64 / distance[0] * self.CAM_TO_PP)
@@ -315,11 +379,10 @@ class Area():
                     self.find_mob_sprite(mob_view_system[1][1], mob_view_system[1][2], False, i, 1)
                 elif not mob_view_system[1][0]:
                     draw_mob = False
-
-                    # self.mob_sprite_group = pygame.sprite.Group()
+            """данное условие предназначено для сглаживания,
+             стены однако из за текстур в этом нет острой необходимости"""
             if high % 2 != 0:
                 high -= 1
-
             Wall(wall_group, pece_index, high, int(PP[1] / 2 - high / 2), i)
 
             angle -= ANGLE_BETWEEN_RAYS
@@ -327,9 +390,9 @@ class Area():
             angle_bet += ANGLE_BETWEEN_RAYS
             coords_for_texturing = []
         wall_group.draw(self.screen)
-        # self.mob_sprite_group.draw(self.screen)
 
     def find_mob_sprite(self, x, y, find_high, display_x, ray_id):
+        # мотод для обнаружения и редактирования спрайта моба
         dist = sqrt((self.player.x - x) ** 2 + (self.player.y - y) ** 2)
         if find_high:
             self.sprite_high = 64 / dist * self.CAM_TO_PP
@@ -340,14 +403,15 @@ class Area():
             pic_id = int(y % 64)
         if dist >= 256:
             Mob(self.mob_sprite_group, True, pic_id, display_x, display_y, int(self.sprite_high))
-
         else:
             Mob(self.mob_sprite_group, False, pic_id, display_x, display_y, int(self.sprite_high))
+            self.player.damage()
 
     def draw_mob(self):
         self.mob_sprite_group.draw(self.screen)
 
     def angle_cheker(self, angle):
+        # вспомагательный метод для show определяет в какую сторону направлен текущий луч
         if angle >= 360:
             angle -= 360
         if angle < 0:
@@ -362,62 +426,74 @@ class Area():
             self.player.view_right = False
 
 
-running = True
-FPS_CONTROL = 30
-pygame.time.set_timer(FPS_CONTROL, 50)
+def gameplay():
+    # главный игровой цикл
+    main_surface.fill((25, 25, 25))
+    running = True
+    FPS_CONTROL = 30
+    pygame.time.set_timer(FPS_CONTROL, 50)
+    world = Area(main_surface)
+    hand = pygame.sprite.Group()
+    Hand(hand)
+    player = Player(700.3857446442757, 83.0443589265848, 355.52232499999974, world, hand)
+    world.add_creature(player)
+    forward, back, left, right, wait_piw = False, False, False, False, False
+    hp_font = pygame.font.Font(None, 42)
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.KEYDOWN:
+                keys = pygame.key.get_pressed()
+                if keys[pygame.K_UP]:
+                    forward = True
+                if keys[pygame.K_DOWN]:
+                    back = True
+                if keys[pygame.K_LEFT]:
+                    left = True
+                if keys[pygame.K_RIGHT]:
+                    right = True
+                if keys[pygame.K_a]:
+                    hand.update(True)
+            if event.type == pygame.KEYUP:
+                keys = pygame.key.get_pressed()
+                if not keys[pygame.K_UP]:
+                    forward = False
+                if not keys[pygame.K_DOWN]:
+                    back = False
+                if not keys[pygame.K_LEFT]:
+                    left = False
+                if not keys[pygame.K_RIGHT]:
+                    right = False
+                if event.key == pygame.K_a:
+                    hand.update(False)
+                    player.piw()
+                print(player.x, player.y, player.pov)
+            if event.type == pygame.QUIT:
+                running = False
+            if event.type == FPS_CONTROL:
+                if forward:
+                    player.walk_forward()
+                if back:
+                    player.walk_back()
+                if right:
+                    player.rotate_right()
+                if left:
+                    player.rotate_left()
+                if player.reason:
+                    return True
+                elif player.reason == False:
+                    return False
+                pygame.display.flip()
+                main_surface.fill((25, 25, 25))
+                world.show()
+                world.draw_mob()
+                hand.draw(main_surface)
+                rendered = hp_font.render(f'HP: {int(player.hp)}%', 1, (255, 0, 0))
+                main_surface.blit(rendered, (0, 0))
+    pygame.quit()
+    sys.exit()
 
-world = Area(main_surface)
-hand = pygame.sprite.Group()
-Hand(hand)
-player = Player(282.3857446442757, 83.0443589265848, 248.52232499999974, world, hand)
-world.add_creature(player)
-print(player.view_right, player.view_up)
 
-# player.pov +=89
-world.show()
-pygame.display.flip()
-forward, back, left, right = False, False, False, False
-while running:
-
-    for event in pygame.event.get():
-        if event.type == pygame.KEYDOWN:
-            keys = pygame.key.get_pressed()
-            if keys[pygame.K_UP]:
-                forward = True
-            if keys[pygame.K_DOWN]:
-                back = True
-            if keys[pygame.K_LEFT]:
-                left = True
-            if keys[pygame.K_RIGHT]:
-                right = True
-            if keys[pygame.K_a]:
-                hand.update(True)
-        if event.type == pygame.KEYUP:
-            keys = pygame.key.get_pressed()
-            if not keys[pygame.K_UP]:
-                forward = False
-            if not keys[pygame.K_DOWN]:
-                back = False
-            if not keys[pygame.K_LEFT]:
-                left = False
-            if not keys[pygame.K_RIGHT]:
-                right = False
-            if not keys[pygame.K_a]:
-                hand.update(False)
-            print(player.x, player.y, player.pov)
-        if event.type == pygame.QUIT:
-            running = False
-        if event.type == FPS_CONTROL:
-            if forward:
-                player.walk_forward()
-            if back:
-                player.walk_back()
-            if right:
-                player.rotate_right()
-            if left:
-                player.rotate_left()
-            main_surface.fill((50, 50, 50))
-            world.show()
-            world.draw_mob()
-            hand.draw(main_surface)
-    pygame.display.flip()
+if gameplay():
+    gameover(True)
+else:
+    gameover(False)
