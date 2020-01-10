@@ -9,6 +9,7 @@ import sys
 pygame.init()
 main_surface = pygame.display.set_mode((768, 512))
 main_surface.fill((255, 255, 255))
+game_result = None
 
 
 def load_image(name, colorkey=None):
@@ -23,6 +24,9 @@ def load_image(name, colorkey=None):
     return image
 
 
+load = pygame.mixer.Sound(os.path.join('data', 'load.wav'))
+piw = pygame.mixer.Sound(os.path.join('data', 'piw.wav'))
+mod_fire = pygame.mixer.Sound(os.path.join('data', 'fire.wav'))
 # загрузка спрайтов мобос и стены
 WALL = [load_image(f'peace{i}.png') for i in range(64)]
 WALL = numpy.array(WALL)
@@ -33,15 +37,39 @@ BACKGROUND = load_image('background.jpg')
 
 
 def gameover(reason):
-    global main_surface
+    pygame.time.delay(2500)
+    global main_surface, game_result
     main_surface.fill((25, 25, 25))
     main_surface.blit(BACKGROUND, (0, 0))
-    message_font = pygame.font.Font(None, 42)
+    message_font = pygame.font.Font(None, 38)
     control_font = pygame.font.Font(None, 36)
     if reason:
-        rendered = message_font.render('Блестяще! Вы победили!', 1, (255, 255, 255))
-        main_surface.blit(rendered, (100, 112))
+        pygame.mixer.music.load(os.path.join('data', 'win.mp3'))
+        pygame.mixer.music.play()
+        if 100 >= game_result >= 90:
+            rendered = message_font.render('Блестяще! Вы победили, отделавшись легким испугом', 1, (255, 255, 255))
+            main_surface.blit(rendered, (50, 112))
+        elif 89 >= game_result >= 50:
+            rendered = message_font.render('Победа! В память об этой миссии у вас остался', 1,
+                                           (255, 255, 255))
+            main_surface.blit(rendered, (25, 112))
+            rendered_2 = message_font.render('небольшой шрам', 1,
+                                             (255, 255, 255))
+            main_surface.blit(rendered_2, (100, 150))
+        elif 49 >= game_result >= 10:
+            rendered = message_font.render('Победа досталась вам ценой многочисленных ран', 1, (255, 255, 255))
+            main_surface.blit(rendered, (25, 112))
+        elif 9 >= game_result > 0:
+            rendered = message_font.render('Несмотря на вашу победу, на обратном пути вы погибли от полученных ран', 1,
+                                           (255, 255, 255))
+            main_surface.blit(rendered, (10, 112))
+            rendered_2 = message_font.render('от полученных ран', 1,
+                                             (255, 255, 255))
+            main_surface.blit(rendered_2, (100, 150))
+        game_result = None
     else:
+        pygame.mixer.music.load(os.path.join('data', 'lose.mp3'))
+        pygame.mixer.music.play()
         rendered = message_font.render('Эти существа оказались вам не по зубам...', 1, (255, 255, 255))
         main_surface.blit(rendered, (100, 112))
     control_render = control_font.render('Нажмите пробел для новой игры', 1, (255, 255, 255))
@@ -54,12 +82,14 @@ def gameover(reason):
         for event in pygame.event.get():
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
-                    gameplay()
+                    pygame.mixer.music.stop()
+                    return True
                 elif event.key == pygame.K_ESCAPE:
-                    pygame.quit()
-                    sys.exit()
+                    running = False
             if event.type == pygame.QUIT:
                 running = False
+    pygame.quit()
+    sys.exit()
 
 
 class Creature():
@@ -113,6 +143,7 @@ class Player(Creature):
         self.fov = 60
         self.hand = hand
         self.hp = 100
+        self.scream = pygame.mixer.Sound(os.path.join('data', 'scream.wav'))
         self.reason = None  # reason for game over
 
     def rotate_left(self):
@@ -166,6 +197,7 @@ class Player(Creature):
 
     def piw(self):
         # стрельба
+        piw.play()
         i = 1
         sinus = sin(radians(self.pov))
         cosinus = cos(radians(self.pov))
@@ -186,6 +218,7 @@ class Player(Creature):
                 self.reason = True
 
     def damage(self):
+        self.scream.play()
         self.hp -= 0.005
         if self.hp <= 0:
             self.reason = False
@@ -199,8 +232,11 @@ class Mob(pygame.sprite.Sprite):
         global MOB
         if state:
             self.image = MOB[0][pic_index]
+            mod_fire.stop()
         else:
             self.image = MOB[1][pic_index]
+            mod_fire.play()
+            mod_fire.set_volume(0.5)
         self.image = pygame.transform.scale(self.image, (1, high))
         self.rect = self.image.get_rect()
         self.rect.x = x
@@ -235,8 +271,8 @@ class Area():
                                 [1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1],
                                 [1, 3, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1],
                                 [1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 0, 0, 3, 1],
-                                [1, 0, 3, 0, 0, 0, 0, 1, 0, 1, 0, 1, 1, 1, 1],
-                                [1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1],
+                                [1, 0, 3, 0, 0, 0, 3, 1, 0, 1, 0, 1, 1, 1, 1],
+                                [1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 3, 0, 0, 1],
                                 [1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 1],
                                 [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 1],
                                 [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]])
@@ -428,17 +464,23 @@ class Area():
 
 def gameplay():
     # главный игровой цикл
+    global main_surface, game_result
     main_surface.fill((25, 25, 25))
     running = True
+    pygame.mixer.music.load(os.path.join('data', 'gameplay.mp3'))
+    pygame.mixer.music.play()
     FPS_CONTROL = 30
     pygame.time.set_timer(FPS_CONTROL, 50)
+    SHOW_HP_CONTROL = 29
+    pygame.time.set_timer(SHOW_HP_CONTROL, 1000)
     world = Area(main_surface)
     hand = pygame.sprite.Group()
     Hand(hand)
-    player = Player(700.3857446442757, 83.0443589265848, 355.52232499999974, world, hand)
+    player = Player(112.72611227386236, 96.71555688615558, 1.000000010000008, world, hand)
     world.add_creature(player)
     forward, back, left, right, wait_piw = False, False, False, False, False
     hp_font = pygame.font.Font(None, 42)
+    rendered = hp_font.render(f'HP: {int(player.hp)}%', 1, (255, 0, 0))
     while running:
         for event in pygame.event.get():
             if event.type == pygame.KEYDOWN:
@@ -452,6 +494,7 @@ def gameplay():
                 if keys[pygame.K_RIGHT]:
                     right = True
                 if keys[pygame.K_a]:
+                    load.play()
                     hand.update(True)
             if event.type == pygame.KEYUP:
                 keys = pygame.key.get_pressed()
@@ -464,11 +507,14 @@ def gameplay():
                 if not keys[pygame.K_RIGHT]:
                     right = False
                 if event.key == pygame.K_a:
+                    load.stop()
                     hand.update(False)
                     player.piw()
                 print(player.x, player.y, player.pov)
             if event.type == pygame.QUIT:
                 running = False
+            if event.type == SHOW_HP_CONTROL:
+                rendered = hp_font.render(f'HP: {int(player.hp)}%', 1, (255, 0, 0))
             if event.type == FPS_CONTROL:
                 if forward:
                     player.walk_forward()
@@ -479,21 +525,67 @@ def gameplay():
                 if left:
                     player.rotate_left()
                 if player.reason:
+                    game_result = player.hp
+                    pygame.mixer.music.stop()
                     return True
                 elif player.reason == False:
+                    pygame.mixer.music.stop()
+                    main_surface.fill((25, 25, 25))
+                    world.show()
+                    world.draw_mob()
+                    rendered = hp_font.render(f'HP: 0%', 1, (255, 0, 0))
+                    main_surface.blit(rendered, (0, 0))
+                    pygame.display.flip()
                     return False
                 pygame.display.flip()
                 main_surface.fill((25, 25, 25))
                 world.show()
                 world.draw_mob()
                 hand.draw(main_surface)
-                rendered = hp_font.render(f'HP: {int(player.hp)}%', 1, (255, 0, 0))
                 main_surface.blit(rendered, (0, 0))
     pygame.quit()
     sys.exit()
 
 
-if gameplay():
-    gameover(True)
-else:
-    gameover(False)
+def start_menu():
+    global main_surface
+    pygame.mixer.music.load(os.path.join('data', 'opening.mp3'))
+    pygame.mixer.music.play(-1)
+    start_background = load_image('start_background.png')
+    main_surface.blit(start_background, (0, 0))
+    pygame.display.flip()
+    running = True
+    state = None
+    show_story = False
+    while running:
+        if show_story:
+            main_surface.blit(load_image('lor.jpg'), (0, 0))
+            pygame.display.flip()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            if event.type == pygame.KEYDOWN:
+                if show_story:
+                    pygame.mixer.music.stop()
+                    state = ['gameplay', gameplay()]
+                    running = False
+                else:
+                    if event.key == pygame.K_SPACE:
+                        show_story = True
+                    if event.key == pygame.K_ESCAPE:
+                        running = False
+    if state is None:
+        pygame.quit()
+        sys.exit()
+    else:
+        while state != ['gameover', False]:
+            if state[0] == 'gameplay':
+                state[0] = 'gameover'
+                state[1] = gameover(state[1])
+            if state[0] == 'gameover':
+                state = ['gameplay', gameplay()]
+        pygame.quit()
+        sys.exit()
+
+
+start_menu()
