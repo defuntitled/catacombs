@@ -10,7 +10,7 @@ gameplay - sign of evil (ost doom 1)
 win - intermission music (ost doom 1)
 lose - ost х\ф "Бумер"
 прочие звуки взяты тут:
-https //opengameart.org/
+https://opengameart.org/
 https://www.mediacollege.com/downloads/sound-effects/
 Удачной игры
 #######################################
