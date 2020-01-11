@@ -1,5 +1,4 @@
-'''Hey, this is stane game *_*
-!!!балланс в игре достигается за счет дпс врагов!!! '''
+'''Hey, this is stane game *_*'''
 import pygame
 from math import tan, sqrt, radians, cos, floor, sin
 import os
@@ -9,7 +8,9 @@ import sys
 pygame.init()
 main_surface = pygame.display.set_mode((768, 512))
 main_surface.fill((255, 255, 255))
+pygame.display.set_caption('Stane')
 game_result = None
+pause = False
 
 
 def load_image(name, colorkey=None):
@@ -24,10 +25,11 @@ def load_image(name, colorkey=None):
     return image
 
 
+# загрузка звуков
 load = pygame.mixer.Sound(os.path.join('data', 'load.wav'))
 piw = pygame.mixer.Sound(os.path.join('data', 'piw.wav'))
 mod_fire = pygame.mixer.Sound(os.path.join('data', 'fire.wav'))
-# загрузка спрайтов мобос и стены
+# загрузка спрайтов мобов и стены
 WALL = [load_image(f'peace{i}.png') for i in range(64)]
 WALL = numpy.array(WALL)
 MOB = [[load_image(f'zilibobkaframe_{i}.png', -1) for i in range(64)],
@@ -99,8 +101,8 @@ class Creature():
     def __init__(self, x, y, pov, area):
         self.x = x
         self.y = y
-        self.pov = pov
-        self.habitant = area
+        self.pov = pov  # point of view направление взгляда
+        self.habitant = area  # объект класса area
         self.view_up = None
         self.view_right = None
         if 0 <= self.pov <= 180:
@@ -140,7 +142,7 @@ class Player(Creature):
         self.walk_speed_back = 10
         self.walk_speed = 10
         self.rotate_speed = 4.111111
-        self.fov = 60
+        self.fov = 60  # field of view поле зрения
         self.hand = hand
         self.hp = 100
         self.scream = pygame.mixer.Sound(os.path.join('data', 'scream.wav'))
@@ -218,10 +220,12 @@ class Player(Creature):
                 self.reason = True
 
     def damage(self):
-        self.scream.play()
-        self.hp -= 0.005
-        if self.hp <= 0:
-            self.reason = False
+        global pause
+        if not pause:
+            self.scream.play()
+            self.hp -= 0.005
+            if self.hp <= 0:
+                self.reason = False
 
 
 class Mob(pygame.sprite.Sprite):
@@ -258,7 +262,8 @@ class Wall(pygame.sprite.Sprite):
 
 class Area():
     '''класс отвечает за рендеринг сцены (стен и мобов)
-    возможно метод show получился перегруженным но так было проще совершенствовать алгоритм отрисовки'''
+    возможно метод show получился перегруженным, но так было проще совершенствовать алгоритм отрисовки
+    число 64 - это размер 1 клетки карты в пикселях'''
 
     def __init__(self, screen):
         self.map = numpy.array([[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
@@ -464,14 +469,14 @@ class Area():
 
 def gameplay():
     # главный игровой цикл
-    global main_surface, game_result
+    global main_surface, game_result, pause
     main_surface.fill((25, 25, 25))
     running = True
     pygame.mixer.music.load(os.path.join('data', 'gameplay.mp3'))
     pygame.mixer.music.play()
     FPS_CONTROL = 30
     pygame.time.set_timer(FPS_CONTROL, 50)
-    SHOW_HP_CONTROL = 29
+    SHOW_HP_CONTROL = 29  # это сделано для упрощения восприятия игроком урона
     pygame.time.set_timer(SHOW_HP_CONTROL, 1000)
     world = Area(main_surface)
     hand = pygame.sprite.Group()
@@ -484,19 +489,24 @@ def gameplay():
     while running:
         for event in pygame.event.get():
             if event.type == pygame.KEYDOWN:
-                keys = pygame.key.get_pressed()
-                if keys[pygame.K_UP]:
-                    forward = True
-                if keys[pygame.K_DOWN]:
-                    back = True
-                if keys[pygame.K_LEFT]:
-                    left = True
-                if keys[pygame.K_RIGHT]:
-                    right = True
-                if keys[pygame.K_a]:
-                    load.play()
-                    hand.update(True)
-            if event.type == pygame.KEYUP:
+                if not pause:
+                    keys = pygame.key.get_pressed()
+                    if keys[pygame.K_UP]:
+                        forward = True
+                    if keys[pygame.K_DOWN]:
+                        back = True
+                    if keys[pygame.K_LEFT]:
+                        left = True
+                    if keys[pygame.K_RIGHT]:
+                        right = True
+                    if keys[pygame.K_a]:
+                        load.play()
+                        hand.update(True)
+                    if keys[pygame.K_ESCAPE]:
+                        pause = True
+                else:
+                    pause = False
+            if not pause and event.type == pygame.KEYUP:
                 keys = pygame.key.get_pressed()
                 if not keys[pygame.K_UP]:
                     forward = False
@@ -514,35 +524,42 @@ def gameplay():
             if event.type == pygame.QUIT:
                 running = False
             if event.type == SHOW_HP_CONTROL:
-                rendered = hp_font.render(f'HP: {int(player.hp)}%', 1, (255, 0, 0))
+                if not pause:
+                    rendered = hp_font.render(f'HP: {int(player.hp)}%', 1, (255, 0, 0))
             if event.type == FPS_CONTROL:
-                if forward:
-                    player.walk_forward()
-                if back:
-                    player.walk_back()
-                if right:
-                    player.rotate_right()
-                if left:
-                    player.rotate_left()
-                if player.reason:
-                    game_result = player.hp
-                    pygame.mixer.music.stop()
-                    return True
-                elif player.reason == False:
-                    pygame.mixer.music.stop()
+                if not pause:
+                    if forward:
+                        player.walk_forward()
+                    if back:
+                        player.walk_back()
+                    if right:
+                        player.rotate_right()
+                    if left:
+                        player.rotate_left()
+                    if player.reason:
+                        game_result = player.hp
+                        pygame.mixer.music.stop()
+                        return True
+                    elif player.reason == False:
+                        pygame.mixer.music.stop()
+                        main_surface.fill((25, 25, 25))
+                        world.show()
+                        world.draw_mob()
+                        rendered = hp_font.render(f'HP: 0%', 1, (255, 0, 0))
+                        main_surface.blit(rendered, (0, 0))
+                        pygame.display.flip()
+                        return False
+                    pygame.display.flip()
                     main_surface.fill((25, 25, 25))
                     world.show()
                     world.draw_mob()
-                    rendered = hp_font.render(f'HP: 0%', 1, (255, 0, 0))
+                    hand.draw(main_surface)
                     main_surface.blit(rendered, (0, 0))
+                else:
                     pygame.display.flip()
-                    return False
-                pygame.display.flip()
-                main_surface.fill((25, 25, 25))
-                world.show()
-                world.draw_mob()
-                hand.draw(main_surface)
-                main_surface.blit(rendered, (0, 0))
+                    main_surface.fill((25, 25, 25))
+                    pause_message = hp_font.render('Нажмите любую клавишу для продолжения игры', 1, (255, 255, 255))
+                    main_surface.blit(pause_message, (25, 250))
     pygame.quit()
     sys.exit()
 
