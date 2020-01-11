@@ -520,7 +520,7 @@ def gameplay():
                     load.stop()
                     hand.update(False)
                     player.piw()
-                print(player.x, player.y, player.pov)
+                print(player.x, player.y, player.pov)  # simple debug
             if event.type == pygame.QUIT:
                 running = False
             if event.type == SHOW_HP_CONTROL:
